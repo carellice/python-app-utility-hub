@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import runpy
 import subprocess
 import sys
 import tkinter as tk
@@ -12,10 +13,47 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 
-ROOT_DIR = Path(__file__).resolve().parent
+
+def is_frozen() -> bool:
+    """Indica se il programma è stato distribuito come applicazione PyInstaller."""
+    return bool(getattr(sys, "frozen", False))
+
+
+def bundled_candidates() -> tuple[Path, ...]:
+    """Elenca le possibili radici della release sui sistemi supportati."""
+    executable_directory = Path(sys.executable).resolve().parent
+    contents_directory = executable_directory.parent
+    meipass = Path(getattr(sys, "_MEIPASS", executable_directory))
+    return (
+        meipass,
+        executable_directory,
+        contents_directory / "Resources",
+        contents_directory / "Frameworks",
+    )
+
+
+def runtime_root() -> Path:
+    """Restituisce la radice dei dati inclusi o del progetto sorgente."""
+    if is_frozen():
+        return next((path for path in bundled_candidates() if (path / "apps").is_dir()), bundled_candidates()[0])
+    return Path(__file__).resolve().parent
+
+
+def bundled_tools_dir() -> Path:
+    """Trova FFmpeg incluso, che PyInstaller colloca in modo diverso su macOS."""
+    if not is_frozen():
+        return ROOT_DIR / "tools"
+    return next(
+        (path / "tools" for path in bundled_candidates() if (path / "tools").is_dir()),
+        ROOT_DIR / "tools",
+    )
+
+
+ROOT_DIR = runtime_root()
 APPS_DIR = ROOT_DIR / "apps"
 VENV_DIR = ROOT_DIR / ".venv"
 REQUIREMENTS_FILE = ROOT_DIR / "requirements.txt"
+TOOLS_DIR = bundled_tools_dir()
 
 COLORS = {
     "canvas": "#f5f6fa",
@@ -177,6 +215,10 @@ def venv_python() -> Path:
 
 def ensure_shared_environment() -> None:
     """Prepara le dipendenze anche quando il launcher è avviato da Terminale."""
+    # La release PyInstaller contiene già Python e ogni dipendenza: non deve
+    # creare un ambiente virtuale né tentare download al primo avvio.
+    if is_frozen():
+        return
     if os.environ.get("UTILITY_HUB_BOOTSTRAPPED") == "1":
         return
 
@@ -208,6 +250,52 @@ def ensure_shared_environment() -> None:
     environment = os.environ.copy()
     environment["UTILITY_HUB_BOOTSTRAPPED"] = "1"
     os.execve(str(python), [str(python), str(Path(__file__).resolve())], environment)
+
+
+def configure_bundled_tools() -> None:
+    """Rende FFmpeg e FFprobe inclusi nella release visibili alle utility."""
+    if not is_frozen() or not TOOLS_DIR.is_dir():
+        return
+    current_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = str(TOOLS_DIR) + (os.pathsep + current_path if current_path else "")
+
+
+def run_bundled_utility(key: str) -> None:
+    """Esegue una utility inclusa nella release in un processo GUI dedicato."""
+    utility = next((item for item in UTILITIES if item.key == key), None)
+    if utility is None:
+        raise RuntimeError(f"Utility sconosciuta: {key}")
+    if not utility.program.is_file():
+        raise RuntimeError(f"Programma non trovato: {utility.program}")
+
+    # Le utility sono file dati della release: il loro import locale (ad
+    # esempio `from image_to_pdfs import …`) deve cercare prima nella cartella
+    # dell'applicazione selezionata.
+    sys.path.insert(0, str(utility.directory))
+    os.chdir(utility.directory)
+    runpy.run_path(str(utility.program), run_name="__main__")
+
+
+def verify_release() -> int:
+    """Controllo non grafico usato dalla pipeline che crea gli installer."""
+    missing = [
+        str(path.relative_to(ROOT_DIR))
+        for utility in UTILITIES
+        for path in (utility.program, utility.icon)
+        if not path.is_file()
+    ]
+    if is_frozen():
+        extension = ".exe" if os.name == "nt" else ""
+        missing.extend(
+            str(path.relative_to(ROOT_DIR))
+            for path in (TOOLS_DIR / f"ffmpeg{extension}", TOOLS_DIR / f"ffprobe{extension}")
+            if not path.is_file()
+        )
+    if missing:
+        print("File mancanti nella release:", ", ".join(missing), file=sys.stderr)
+        return 1
+    print("Python App Utility Hub: release verificata.")
+    return 0
 
 
 class UtilityHub:
@@ -394,7 +482,12 @@ class UtilityHub:
             )
             return
         try:
-            subprocess.Popen([sys.executable, str(utility.program)], cwd=utility.directory)
+            if is_frozen():
+                # Il medesimo eseguibile avvia la utility selezionata con i
+                # dati e le librerie già inclusi, senza richiedere Python.
+                subprocess.Popen([sys.executable, "--run-utility", utility.key])
+            else:
+                subprocess.Popen([sys.executable, str(utility.program)], cwd=utility.directory)
         except OSError as error:
             messagebox.showerror(self.text("launch_error"), str(error), parent=self.root)
             return
@@ -506,6 +599,16 @@ def configure_theme(root: tk.Tk) -> None:
 
 
 def main() -> None:
+    configure_bundled_tools()
+    if len(sys.argv) == 2 and sys.argv[1] == "--verify-package":
+        raise SystemExit(verify_release())
+    if len(sys.argv) == 3 and sys.argv[1] == "--run-utility":
+        try:
+            run_bundled_utility(sys.argv[2])
+        except RuntimeError as error:
+            messagebox.showerror("Python App Utility Hub", str(error))
+            raise SystemExit(1) from error
+        return
     try:
         ensure_shared_environment()
     except RuntimeError as error:

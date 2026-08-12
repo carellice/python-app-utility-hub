@@ -27,19 +27,36 @@ Ogni utility mantiene la propria cartella, le proprie risorse e la propria docum
 | **Estrai audio da video** | Estrarre una o più tracce audio da un filmato. |
 | **Editor tracce e sottotitoli** | Aggiungere, rimuovere e riordinare tracce audio e sottotitoli. |
 
-## Per iniziare
+## Installa la versione pronta all'uso
 
-Su macOS fai doppio clic su `Avvia Python App Utility Hub.command`.
+Non serve scaricare il codice sorgente, installare Python, creare ambienti virtuali o configurare FFmpeg. Dalla pagina **Releases** del repository scarica l'installer adatto al tuo computer, avvialo e segui i passaggi a schermo.
 
-Su Windows fai doppio clic su `Avvia Python App Utility Hub.bat`.
+| Sistema | File da scaricare | Risultato |
+| --- | --- | --- |
+| Windows 10/11 a 64 bit | `Python-App-Utility-Hub-Setup-x.y.z.exe` | Installa l'app nel menu Start e, se desiderato, sul Desktop. |
+| Mac con chip Apple (M1, M2, M3, M4…) | `Python-App-Utility-Hub-macos-arm64.pkg` | Installa l'app in `Applicazioni`. |
+| Mac con processore Intel | `Python-App-Utility-Hub-macos-x64.pkg` | Installa l'app in `Applicazioni`. |
 
-Al primo avvio viene creato automaticamente l'ambiente `.venv` e vengono installate le dipendenze condivise. Dal menu scegli l'utility e premi **Apri**; puoi lasciare aperto il launcher e avviare più programmi quando ne hai bisogno.
+Ogni installer contiene già il runtime Python, le librerie necessarie, FFmpeg e FFprobe: le utility audio e video funzionano quindi senza altre installazioni. Apri **Python App Utility Hub** dal menu Start o dalla cartella Applicazioni, scegli l'utility e premi **Apri**.
 
 L'interfaccia è disponibile sia in **Italiano** sia in **English**: puoi cambiare lingua direttamente dal selettore in alto.
 
-## Nota per audio e video
+## Per sviluppare dal sorgente
 
-Le utility che elaborano audio o video richiedono **FFmpeg** e, quando indicato, **FFprobe** disponibili nel `PATH` del sistema.
+La modalità sorgente resta disponibile per chi contribuisce al progetto. Su macOS fai doppio clic su `Avvia Python App Utility Hub.command`; su Windows su `Avvia Python App Utility Hub.bat`. Al primo avvio viene creato automaticamente l'ambiente `.venv` e vengono installate le dipendenze condivise.
+
+In questa modalità, le utility audio e video richiedono **FFmpeg** e, quando indicato, **FFprobe** disponibili nel `PATH` del sistema.
+
+## Pubblicare una release
+
+Il workflow GitHub Actions [Crea release desktop](.github/workflows/release-desktop.yml) produce nativamente gli installer Windows x64, macOS Intel e macOS Apple Silicon e li allega alla relativa release GitHub. Per pubblicare la versione `1.0.0` basta creare e inviare il tag `v1.0.0`:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Per evitare avvisi di Windows SmartScreen e macOS Gatekeeper, configura i certificati indicati nei commenti del workflow (`WINDOWS_CERTIFICATE_BASE64`, `WINDOWS_CERTIFICATE_PASSWORD`, `MACOS_CERTIFICATE_BASE64`, `MACOS_CERTIFICATE_PASSWORD`, `MACOS_CODESIGN_IDENTITY`, `MACOS_INSTALLER_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`). Senza questi certificati gli installer vengono comunque creati, ma i sistemi operativi possono chiedere una conferma aggiuntiva al primo avvio.
 
 ## Una raccolta ordinata
 
