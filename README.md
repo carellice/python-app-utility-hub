@@ -49,14 +49,14 @@ In questa modalità, le utility audio e video richiedono **FFmpeg** e, quando in
 
 ## Pubblicare una release
 
-Per creare **con un doppio clic** l'installer della piattaforma sulla quale stai lavorando:
+Per creare **con un doppio clic tutti gli installer**:
 
 - su macOS apri [Crea installer all-in-one macOS.command](<Crea installer all-in-one macOS.command>);
 - su Windows apri [Crea installer all-in-one Windows.bat](<Crea installer all-in-one Windows.bat>).
 
-I due generatori chiedono soltanto il numero di versione, preparano un ambiente di build separato, scaricano FFmpeg/FFprobe, includono Python e tutte le dipendenze, verificano il risultato e aprono la cartella dell'installer creato. Richiedono una connessione Internet e Python 3.10 o successivo **solo sul computer che genera la release**; l'utente finale non dovrà installare Python. Il file macOS genera il `.pkg` dell'architettura del Mac corrente, mentre quello Windows genera l'`.exe` per Windows x64 e installa automaticamente Inno Setup se manca.
+I due generatori chiedono soltanto il numero di versione e una conferma: verificano che il repository sia pulito, pubblicano `main`, creano il tag e avviano il workflow GitHub Actions [Crea release desktop](.github/workflows/release-desktop.yml). GitHub compila nativamente Windows x64, macOS Intel e macOS Apple Silicon, include Python, dipendenze, FFmpeg e FFprobe, poi allega i tre installer alla release. Richiedono Git configurato e autenticato su GitHub **solo sul computer che pubblica la release**; l'utente finale non dovrà installare Python né scaricare il sorgente.
 
-Il workflow GitHub Actions [Crea release desktop](.github/workflows/release-desktop.yml) rimane utile quando vuoi produrre con un solo tag tutti e tre i file (Windows x64, macOS Intel e macOS Apple Silicon) e allegarli automaticamente alla release GitHub. Per pubblicare la versione `1.0.0` basta creare e inviare il tag `v1.0.0`:
+Usa uno dei due file una sola volta per ogni versione: entrambi avviano la medesima release universale. In alternativa, puoi pubblicare manualmente la versione `1.0.0` creando e inviando il tag `v1.0.0`:
 
 ```bash
 git tag v1.0.0

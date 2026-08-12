@@ -1,98 +1,94 @@
 @echo off
-rem Genera, con un doppio clic, l'installer .exe per Windows x64.
+rem Pubblica una release GitHub che genera Windows, macOS Intel e macOS Apple Silicon.
 setlocal EnableExtensions
 cd /d "%~dp0"
 
 echo.
-echo ====================================================
-echo   Python App Utility Hub - generatore Windows
-echo ====================================================
+echo ==========================================================
+echo   Python App Utility Hub - release universale GitHub
+echo ==========================================================
+echo.
+echo Questa procedura creera automaticamente gli installer:
+echo   - Windows x64 (.exe)
+echo   - macOS Intel (.pkg)
+echo   - macOS Apple Silicon (.pkg)
 echo.
 set /p "RELEASE_VERSION=Versione della release [1.0.0]: "
 if "%RELEASE_VERSION%"=="" set "RELEASE_VERSION=1.0.0"
+if /I "%RELEASE_VERSION:~0,1%"=="v" set "RELEASE_VERSION=%RELEASE_VERSION:~1%"
+set "RELEASE_TAG=v%RELEASE_VERSION%"
 
-set "PYTHON="
-where py >nul 2>nul
-if not errorlevel 1 (
-  py -3 -c "import sys; raise SystemExit(sys.version_info ^< (3, 10))" >nul 2>nul
-  if not errorlevel 1 set "PYTHON=py -3"
-)
-if defined PYTHON goto python_found
-
-where python >nul 2>nul
-if not errorlevel 1 (
-  python -c "import sys; raise SystemExit(sys.version_info ^< (3, 10))" >nul 2>nul
-  if not errorlevel 1 set "PYTHON=python"
-)
-if defined PYTHON goto python_found
-
-echo.
-echo Serve Python 3.10 o successivo per creare l'installer.
-echo Installalo da https://www.python.org/downloads/ e riapri questo file.
-goto failed
-
-:python_found
-echo.
-echo Preparo l'ambiente di build...
-if not exist ".release-venv\Scripts\python.exe" %PYTHON% -m venv .release-venv
-if errorlevel 1 goto failed
-
-call ".release-venv\Scripts\python.exe" -m pip install --upgrade pip -r requirements-build.txt
-if errorlevel 1 goto failed
-
-echo.
-echo Scarico FFmpeg e FFprobe da includere...
-call ".release-venv\Scripts\python.exe" packaging\fetch_ffmpeg.py --output packaging\vendor
-if errorlevel 1 goto failed
-
-echo.
-echo Creo l'app autosufficiente...
-call ".release-venv\Scripts\python.exe" packaging\build.py --output release\app
-if errorlevel 1 goto failed
-call ".release-venv\Scripts\python.exe" packaging\verify_bundle.py --bundle "release\app\Python App Utility Hub"
-if errorlevel 1 goto failed
-
-set "ISCC="
-for %%I in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Setup 6\ISCC.exe") do (
-  if exist "%%~fI" set "ISCC=%%~fI"
-)
-if defined ISCC goto inno_found
-
-echo.
-echo Installo automaticamente Inno Setup, necessario per creare il file .exe...
-where winget >nul 2>nul
+echo %RELEASE_VERSION% | findstr /r "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
 if errorlevel 1 (
-  echo Non trovo Windows Package Manager (winget).
-  echo Installa Inno Setup 6 da https://jrsoftware.org/isdl.php e riapri questo file.
+  echo La versione deve avere il formato 1.0.0.
   goto failed
 )
-winget install --exact --id JRSoftware.InnoSetup --accept-source-agreements --accept-package-agreements
-if errorlevel 1 goto failed
-for %%I in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Setup 6\ISCC.exe") do (
-  if exist "%%~fI" set "ISCC=%%~fI"
-)
-if not defined ISCC (
-  echo Non riesco a trovare Inno Setup dopo l'installazione.
+where git >nul 2>nul
+if errorlevel 1 (
+  echo Git non e installato. Installalo da https://git-scm.com/ e riapri questo file.
   goto failed
 )
 
-:inno_found
+git status --porcelain | findstr . >nul
+if not errorlevel 1 (
+  echo Ci sono modifiche non salvate in Git. Esegui prima un commit e riapri questo file.
+  goto failed
+)
+for /f "delims=" %%B in ('git branch --show-current') do set "CURRENT_BRANCH=%%B"
+if /I not "%CURRENT_BRANCH%"=="main" (
+  echo Per pubblicare una release devi trovarti sul branch main.
+  goto failed
+)
+git remote get-url origin >nul 2>nul
+if errorlevel 1 (
+  echo Non trovo il remoto GitHub "origin".
+  goto failed
+)
+
+git rev-parse -q --verify "refs/tags/%RELEASE_TAG%" >nul 2>nul
+if not errorlevel 1 (
+  echo Il tag locale %RELEASE_TAG% esiste gia: scegli un'altra versione.
+  goto failed
+)
+
+set "TAG_EXISTS="
+for /f "delims=" %%T in ('git ls-remote --tags origin refs/tags/%RELEASE_TAG%') do set "TAG_EXISTS=1"
+if defined TAG_EXISTS (
+  echo Il tag %RELEASE_TAG% esiste gia su GitHub: scegli un'altra versione.
+  goto failed
+)
+
 echo.
-echo Creo il pacchetto di installazione...
-"%ISCC%" "/DMyAppVersion=%RELEASE_VERSION%" packaging\windows-installer.iss
+echo Verranno pubblicati il branch main e il tag %RELEASE_TAG% su GitHub.
+set /p "CONFIRMATION=Continuare? [s/N]: "
+if /I not "%CONFIRMATION%"=="s" (
+  echo Operazione annullata.
+  pause
+  exit /b 0
+)
+
+echo.
+echo Pubblico il codice necessario...
+git push origin main
+if errorlevel 1 goto failed
+git tag -a "%RELEASE_TAG%" -m "Release %RELEASE_TAG%"
+if errorlevel 1 goto failed
+git push origin "%RELEASE_TAG%"
 if errorlevel 1 goto failed
 
-set "INSTALLER=%CD%\release\installers\Python-App-Utility-Hub-Setup-%RELEASE_VERSION%.exe"
+for /f "delims=" %%U in ('git remote get-url origin') do set "REMOTE_URL=%%U"
+set "REPOSITORY_URL=%REMOTE_URL:.git=%"
+if /I "%REPOSITORY_URL:~0,15%"=="git@github.com:" set "REPOSITORY_URL=https://github.com/%REPOSITORY_URL:~15%"
+
 echo.
-echo Installer creato con successo:
-echo %INSTALLER%
-explorer.exe /select,"%INSTALLER%"
+echo Release avviata su GitHub. I tre installer saranno disponibili tra alcuni minuti.
+start "" "%REPOSITORY_URL%/actions"
 echo.
 pause
 exit /b 0
 
 :failed
 echo.
-echo Creazione dell'installer non riuscita.
+echo Creazione della release non riuscita.
 pause
 exit /b 1
