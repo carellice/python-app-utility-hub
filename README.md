@@ -39,6 +39,8 @@ Non serve scaricare il codice sorgente, installare Python, creare ambienti virtu
 
 Ogni installer contiene già il runtime Python, le librerie necessarie, FFmpeg e FFprobe: le utility audio e video funzionano quindi senza altre installazioni. Apri **Python App Utility Hub** dal menu Start o dalla cartella Applicazioni, scegli l'utility e premi **Apri**.
 
+Su macOS l'installer colloca sempre l'app in **Applicazioni** (`/Applications/Python App Utility Hub.app`), senza usare eventuali copie presenti nei Download o nella cartella del progetto.
+
 L'interfaccia è disponibile sia in **Italiano** sia in **English**: puoi cambiare lingua direttamente dal selettore in alto.
 
 ## Per sviluppare dal sorgente
