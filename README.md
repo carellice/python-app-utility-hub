@@ -49,7 +49,14 @@ In questa modalità, le utility audio e video richiedono **FFmpeg** e, quando in
 
 ## Pubblicare una release
 
-Il workflow GitHub Actions [Crea release desktop](.github/workflows/release-desktop.yml) produce nativamente gli installer Windows x64, macOS Intel e macOS Apple Silicon e li allega alla relativa release GitHub. Per pubblicare la versione `1.0.0` basta creare e inviare il tag `v1.0.0`:
+Per creare **con un doppio clic** l'installer della piattaforma sulla quale stai lavorando:
+
+- su macOS apri [Crea installer all-in-one macOS.command](<Crea installer all-in-one macOS.command>);
+- su Windows apri [Crea installer all-in-one Windows.bat](<Crea installer all-in-one Windows.bat>).
+
+I due generatori chiedono soltanto il numero di versione, preparano un ambiente di build separato, scaricano FFmpeg/FFprobe, includono Python e tutte le dipendenze, verificano il risultato e aprono la cartella dell'installer creato. Richiedono una connessione Internet e Python 3.10 o successivo **solo sul computer che genera la release**; l'utente finale non dovrà installare Python. Il file macOS genera il `.pkg` dell'architettura del Mac corrente, mentre quello Windows genera l'`.exe` per Windows x64 e installa automaticamente Inno Setup se manca.
+
+Il workflow GitHub Actions [Crea release desktop](.github/workflows/release-desktop.yml) rimane utile quando vuoi produrre con un solo tag tutti e tre i file (Windows x64, macOS Intel e macOS Apple Silicon) e allegarli automaticamente alla release GitHub. Per pubblicare la versione `1.0.0` basta creare e inviare il tag `v1.0.0`:
 
 ```bash
 git tag v1.0.0
