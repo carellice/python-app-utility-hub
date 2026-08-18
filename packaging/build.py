@@ -165,7 +165,9 @@ def main() -> None:
     for module in DYNAMIC_UTILITY_IMPORTS:
         command.extend(["--hidden-import", module])
     if platform.system() == "Darwin":
-        command.extend(["--argv-emulation", "--osx-bundle-identifier", "com.fc.pythonapputilityhub"])
+        # L'hub non gestisce l'apertura di documenti o URL. argv emulation non
+        # serve e interferisce con l'avvio di una utility come processo figlio.
+        command.extend(["--osx-bundle-identifier", "com.fc.pythonapputilityhub"])
         if args.codesign_identity:
             command.extend(["--codesign-identity", args.codesign_identity])
 

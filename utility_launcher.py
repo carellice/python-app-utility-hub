@@ -49,14 +49,6 @@ def bundled_tools_dir() -> Path:
     )
 
 
-def macos_app_bundle() -> Path | None:
-    """Restituisce il bundle .app dell'eseguibile PyInstaller su macOS."""
-    if not is_frozen() or sys.platform != "darwin":
-        return None
-    executable = Path(sys.executable).resolve()
-    return next((parent for parent in executable.parents if parent.suffix == ".app"), None)
-
-
 ROOT_DIR = runtime_root()
 APPS_DIR = ROOT_DIR / "apps"
 VENV_DIR = ROOT_DIR / ".venv"
@@ -541,16 +533,7 @@ class UtilityHub:
             if is_frozen():
                 # Il medesimo eseguibile avvia la utility selezionata con i
                 # dati e le librerie già inclusi, senza richiedere Python.
-                # Su macOS un .app deve essere avviato tramite Launch Services:
-                # eseguire direttamente Contents/MacOS/... può chiudere subito
-                # il processo secondario o ignorarne gli argomenti.
-                app_bundle = macos_app_bundle()
-                command = (
-                    ["open", "-n", str(app_bundle), "--args", "--run-utility", utility.key]
-                    if app_bundle is not None
-                    else [sys.executable, "--run-utility", utility.key]
-                )
-                subprocess.Popen(command)
+                subprocess.Popen([sys.executable, "--run-utility", utility.key])
             else:
                 subprocess.Popen([sys.executable, str(utility.program)], cwd=utility.directory)
         except OSError as error:
