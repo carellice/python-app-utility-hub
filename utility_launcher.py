@@ -49,6 +49,14 @@ def bundled_tools_dir() -> Path:
     )
 
 
+def macos_app_bundle() -> Path | None:
+    """Restituisce il bundle .app dell'eseguibile PyInstaller su macOS."""
+    if not is_frozen() or sys.platform != "darwin":
+        return None
+    executable = Path(sys.executable).resolve()
+    return next((parent for parent in executable.parents if parent.suffix == ".app"), None)
+
+
 ROOT_DIR = runtime_root()
 APPS_DIR = ROOT_DIR / "apps"
 VENV_DIR = ROOT_DIR / ".venv"
@@ -294,8 +302,56 @@ def verify_release() -> int:
     if missing:
         print("File mancanti nella release:", ", ".join(missing), file=sys.stderr)
         return 1
+    import_errors = verify_utility_imports()
+    if import_errors:
+        print("Import non disponibili nella release:", *import_errors, sep="\n", file=sys.stderr)
+        return 1
     print("Python App Utility Hub: release verificata.")
     return 0
+
+
+def verify_utility_imports() -> list[str]:
+    """Carica ogni utility senza avviarne la GUI.
+
+    Le utility sono file dati eseguiti con :mod:`runpy`, quindi PyInstaller non
+    riesce a rilevarne i moduli necessari in fase di analisi statica.  Questo
+    controllo viene eseguito sul bundle appena creato e impedisce di pubblicare
+    una release in cui una voce dell'hub si chiuderebbe subito per un import
+    mancante.
+    """
+    errors: list[str] = []
+    initial_directory = Path.cwd()
+    for utility in UTILITIES:
+        inserted_path = str(utility.directory)
+        try:
+            # Gli import locali (come ``from app import run``) devono risolvere
+            # nella cartella della utility, esattamente come al suo avvio.
+            sys.path.insert(0, inserted_path)
+            os.chdir(utility.directory)
+            runpy.run_path(
+                str(utility.program),
+                run_name=f"__utility_import_check_{utility.key}__",
+            )
+        except Exception as error:  # pragma: no cover - esercitato nel bundle PyInstaller
+            errors.append(f"{utility.folder}: {error.__class__.__name__}: {error}")
+        finally:
+            os.chdir(initial_directory)
+            try:
+                sys.path.remove(inserted_path)
+            except ValueError:
+                pass
+            # Moduli locali con nomi generici, per esempio ``app``, non devono
+            # venire riutilizzati dalla verifica dell'utility successiva.
+            for name, module in list(sys.modules.items()):
+                module_file = getattr(module, "__file__", None)
+                if module_file is None:
+                    continue
+                try:
+                    Path(module_file).resolve().relative_to(utility.directory)
+                except (OSError, ValueError):
+                    continue
+                sys.modules.pop(name, None)
+    return errors
 
 
 class UtilityHub:
@@ -485,7 +541,16 @@ class UtilityHub:
             if is_frozen():
                 # Il medesimo eseguibile avvia la utility selezionata con i
                 # dati e le librerie già inclusi, senza richiedere Python.
-                subprocess.Popen([sys.executable, "--run-utility", utility.key])
+                # Su macOS un .app deve essere avviato tramite Launch Services:
+                # eseguire direttamente Contents/MacOS/... può chiudere subito
+                # il processo secondario o ignorarne gli argomenti.
+                app_bundle = macos_app_bundle()
+                command = (
+                    ["open", "-n", str(app_bundle), "--args", "--run-utility", utility.key]
+                    if app_bundle is not None
+                    else [sys.executable, "--run-utility", utility.key]
+                )
+                subprocess.Popen(command)
             else:
                 subprocess.Popen([sys.executable, str(utility.program)], cwd=utility.directory)
         except OSError as error:
@@ -605,8 +670,11 @@ def main() -> None:
     if len(sys.argv) == 3 and sys.argv[1] == "--run-utility":
         try:
             run_bundled_utility(sys.argv[2])
-        except RuntimeError as error:
-            messagebox.showerror("Python App Utility Hub", str(error))
+        except Exception as error:  # pragma: no cover - confine della GUI distribuita
+            messagebox.showerror(
+                "Python App Utility Hub",
+                f"Non riesco ad avviare l'app selezionata.\n\n{error}",
+            )
             raise SystemExit(1) from error
         return
     try:

@@ -23,6 +23,43 @@ APP_NAME = "Python App Utility Hub"
 ICON_SOURCE = ROOT / "assets" / "python-app-utility-hub-logo.png"
 VENDOR_TOOLS = ROOT / "packaging" / "vendor"
 
+# Le utility vengono copiate nel bundle come sorgenti e avviate con runpy.  Per
+# questo PyInstaller non può analizzarne gli import in modo automatico: senza
+# questi moduli la finestra dell'hub si apre, ma l'app selezionata termina subito
+# (per esempio con ``ModuleNotFoundError: queue``).  Gli import di terze parti
+# sono raccolti più sotto con ``--collect-all``; questa lista copre quelli della
+# libreria standard e i sotto-moduli tkinter caricati dalle utility.
+DYNAMIC_UTILITY_IMPORTS = (
+    "argparse",
+    "base64",
+    "collections",
+    "dataclasses",
+    "enum",
+    "hashlib",
+    "io",
+    "json",
+    "math",
+    "os",
+    "pathlib",
+    "platform",
+    "queue",
+    "re",
+    "shutil",
+    "subprocess",
+    "sys",
+    "tempfile",
+    "threading",
+    "time",
+    "tkinter",
+    "tkinter.filedialog",
+    "tkinter.scrolledtext",
+    "tkinter.ttk",
+    "types",
+    "typing",
+    "uuid",
+    "zipfile",
+)
+
 
 def create_icon(output: Path) -> Path:
     """Genera l'icona nel formato richiesto dalla piattaforma di build."""
@@ -125,6 +162,8 @@ def main() -> None:
         "tkinterdnd2",
         str(ROOT / "utility_launcher.py"),
     ]
+    for module in DYNAMIC_UTILITY_IMPORTS:
+        command.extend(["--hidden-import", module])
     if platform.system() == "Darwin":
         command.extend(["--argv-emulation", "--osx-bundle-identifier", "com.fc.pythonapputilityhub"])
         if args.codesign_identity:

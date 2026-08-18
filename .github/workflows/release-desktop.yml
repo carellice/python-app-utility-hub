@@ -94,6 +94,8 @@ jobs:
         shell: pwsh
         run: |
           python packaging/verify_bundle.py --bundle "release/app/Python App Utility Hub"
+          & "release/app/Python App Utility Hub/Python App Utility Hub.exe" --verify-package
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Crea l'installer Windows
         if: runner.os == 'Windows'
@@ -118,6 +120,7 @@ jobs:
         shell: bash
         run: |
           python packaging/verify_bundle.py --bundle "release/app/Python App Utility Hub.app"
+          "release/app/Python App Utility Hub.app/Contents/MacOS/Python App Utility Hub" --verify-package
           codesign --verify --deep --strict "release/app/Python App Utility Hub.app"
 
       - name: Crea l'installer macOS
